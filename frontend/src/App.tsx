@@ -126,8 +126,9 @@ export default function App() {
       setView('list');
       fetchTasks();
       if (WebApp.HapticFeedback) WebApp.HapticFeedback.notificationOccurred('success');
-    } catch (e) {
+    } catch (e: any) {
       console.error("Error creating task", e);
+      alert("Ошибка сохранения: " + (e.message || "Неизвестная ошибка") + "\nПроверьте API_URL!");
       if (WebApp.HapticFeedback) WebApp.HapticFeedback.notificationOccurred('error');
     }
   };
@@ -278,14 +279,28 @@ export default function App() {
                 </div>
                 
                 {showCustomTime && (
-                  <div className={`mt-4 ${cardStyle} rounded-2xl p-5 flex items-center justify-between animate-in fade-in slide-in-from-top-2`}>
+                  <div className={`mt-4 ${cardStyle} rounded-2xl p-5 flex flex-col gap-3 animate-in fade-in slide-in-from-top-2`}>
                     <span className="font-medium opacity-80">{t.select_time}</span>
-                    <input 
-                      type="time" 
-                      value={customTimeStr}
-                      onChange={(e) => setCustomTimeStr(e.target.value)}
-                      className={`bg-transparent text-xl font-semibold outline-none ${isDark ? '[color-scheme:dark]' : ''}`}
-                    />
+                    <div className="flex gap-3">
+                      <input 
+                        type="date" 
+                        value={remindDate ? format(remindDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd')}
+                        onChange={(e) => {
+                          const [y, m, d] = e.target.value.split('-');
+                          const newD = new Date(Number(y), Number(m)-1, Number(d));
+                          const currentH = remindDate ? remindDate.getHours() : 12;
+                          const currentM = remindDate ? remindDate.getMinutes() : 0;
+                          setRemindDate(setMinutes(setHours(newD, currentH), currentM));
+                        }}
+                        className={`flex-1 bg-transparent text-lg font-semibold outline-none ${isDark ? '[color-scheme:dark]' : ''}`}
+                      />
+                      <input 
+                        type="time" 
+                        value={customTimeStr}
+                        onChange={(e) => setCustomTimeStr(e.target.value)}
+                        className={`bg-transparent text-lg font-semibold outline-none ${isDark ? '[color-scheme:dark]' : ''}`}
+                      />
+                    </div>
                   </div>
                 )}
               </div>

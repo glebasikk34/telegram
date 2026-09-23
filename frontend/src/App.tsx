@@ -5,8 +5,9 @@ import { CheckCircle2, Circle, Settings2, Plus, ArrowLeft } from 'lucide-react';
 import axios from 'axios';
 import { format } from 'date-fns';
 
-const API_URL = import.meta.env.DEV ? 'http://localhost:8000' : '/api'; // Replace with real URL when deploying
-
+// ВАЖНО: Замените ссылку ниже на ваш настоящий URL от Render.com (например, 'https://my-bot.onrender.com')
+// Иначе кнопки в интерфейсе не будут работать, так как приложение не знает, где находится бэкенд!
+const API_URL = 'ВАШ_URL_ОТ_RENDER_ЗДЕСЬ'; 
 interface Task {
   id: number;
   title: string;

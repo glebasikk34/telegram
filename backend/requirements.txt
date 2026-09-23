@@ -1,0 +1,9 @@
+aiogram==3.4.1
+fastapi==0.110.0
+uvicorn==0.27.1
+sqlalchemy==2.0.28
+asyncpg==0.29.0
+apscheduler==3.10.4
+pydantic-settings==2.2.1
+greenlet==3.0.3
+python-dotenv==1.0.1

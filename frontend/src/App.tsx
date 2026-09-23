@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import { useState, useEffect } from 'react';
 import WebApp from '@twa-dev/sdk';
-import { CheckCircle2, Circle, Settings2, Plus, ArrowLeft, Clock, Calendar, Zap } from 'lucide-react';
+import { CheckCircle2, Circle, Settings2, Plus, ArrowLeft, Clock, Calendar, Zap, Globe } from 'lucide-react';
 import axios from 'axios';
 import { format, addMinutes, addHours, addDays, startOfDay, setHours, setMinutes } from 'date-fns';
 
@@ -15,27 +15,77 @@ interface Task {
   is_completed: boolean;
 }
 
+const translations = {
+  en: {
+    tasks: "Tasks",
+    settings: "Settings",
+    done: "Done",
+    what_needs_done: "What needs to be done?",
+    details: "Details (optional)",
+    remind_me: "Remind me",
+    in_15_m: "In 15 mins",
+    in_1_h: "In 1 hour",
+    tmrw_9am: "Tomorrow 9 AM",
+    custom: "Custom",
+    select_time: "Select time",
+    theme: "Theme",
+    liquid_glass: "Liquid Glass (Default)",
+    solid_dark: "Solid Dark",
+    solid_light: "Solid Light",
+    accent_style: "Accent Button Style",
+    no_tasks: "No tasks for today.<br/>You're all clear! ✨",
+    lang: "Language",
+    english: "English",
+    russian: "Russian"
+  },
+  ru: {
+    tasks: "Задачи",
+    settings: "Настройки",
+    done: "Готово",
+    what_needs_done: "Что нужно сделать?",
+    details: "Детали (необязательно)",
+    remind_me: "Напомнить",
+    in_15_m: "Через 15 мин",
+    in_1_h: "Через 1 час",
+    tmrw_9am: "Завтра в 9:00",
+    custom: "Свое время",
+    select_time: "Выберите время",
+    theme: "Тема оформления",
+    liquid_glass: "Матовое стекло (По умолч.)",
+    solid_dark: "Темная",
+    solid_light: "Светлая",
+    accent_style: "Цвет кнопки",
+    no_tasks: "На сегодня задач нет.<br/>Вы свободны! ✨",
+    lang: "Язык",
+    english: "Английский",
+    russian: "Русский"
+  }
+};
+
 export default function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [view, setView] = useState<'list' | 'create' | 'settings'>('list');
   const [title, setTitle] = useState('');
   const [desc, setDesc] = useState('');
   
-  // Custom Time State
   const [remindDate, setRemindDate] = useState<Date | null>(null);
   const [showCustomTime, setShowCustomTime] = useState(false);
   const [customTimeStr, setCustomTimeStr] = useState('12:00');
 
   const [theme, setTheme] = useState<'liquid-glass' | 'dark' | 'light'>('liquid-glass');
   const [btnColor, setBtnColor] = useState('bg-white/20');
+  const [lang, setLang] = useState<'en'|'ru'>('ru');
 
   const userId = WebApp.initDataUnsafe.user?.id || 1080737807;
+  const t = translations[lang];
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme') as any || 'liquid-glass';
     const savedColor = localStorage.getItem('btnColor') || 'bg-white/20';
+    const savedLang = localStorage.getItem('lang') as any || 'ru';
     setTheme(savedTheme);
     setBtnColor(savedColor);
+    setLang(savedLang);
     fetchTasks();
   }, []);
 
@@ -49,7 +99,10 @@ export default function App() {
   };
 
   const handleCreate = async () => {
-    if (!title.trim()) return;
+    if (!title.trim()) {
+      if (WebApp.HapticFeedback) WebApp.HapticFeedback.notificationOccurred('error');
+      return; // Do nothing if title is empty
+    }
     try {
       let finalDate = remindDate;
       if (showCustomTime && customTimeStr) {
@@ -82,7 +135,7 @@ export default function App() {
   const toggleTask = async (id: number) => {
     try {
       await axios.put(`${API_URL}/tasks/${id}/complete`);
-      setTasks(tasks.map(t => t.id === id ? { ...t, is_completed: true } : t));
+      setTasks(tasks.map(tsk => tsk.id === id ? { ...tsk, is_completed: true } : tsk));
       if (WebApp.HapticFeedback) WebApp.HapticFeedback.impactOccurred('medium');
     } catch (e) {
       console.error("Error completing task", e);
@@ -93,9 +146,9 @@ export default function App() {
     localStorage.setItem(key, val);
     if (key === 'theme') setTheme(val as any);
     if (key === 'btnColor') setBtnColor(val);
+    if (key === 'lang') setLang(val as any);
   };
 
-  // Styles dynamically computed for liquid glassmorphism
   const isGlass = theme === 'liquid-glass';
   const isDark = theme === 'dark' || isGlass;
   
@@ -109,7 +162,6 @@ export default function App() {
 
   return (
     <div className={`min-h-screen relative overflow-hidden font-sans transition-colors duration-500 ${bgMain}`}>
-      {/* Liquid Glass Background Elements */}
       {isGlass && (
         <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden bg-[#0F172A]">
           <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-purple-600/40 blur-[100px] mix-blend-screen animate-pulse" />
@@ -123,17 +175,17 @@ export default function App() {
         {view === 'list' && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col h-full">
             <div className="flex justify-between items-center mb-8 pt-2">
-              <h1 className="text-4xl font-semibold tracking-tight">Tasks</h1>
+              <h1 className="text-4xl font-semibold tracking-tight">{t.tasks}</h1>
               <button onClick={() => setView('settings')} className="p-2 rounded-full active:scale-90 transition-transform">
                 <Settings2 className="w-7 h-7 opacity-80" />
               </button>
             </div>
 
             <div className="space-y-4 flex-1 overflow-y-auto pb-24 hide-scrollbar">
-              {tasks.filter(t => !t.is_completed).length === 0 ? (
-                <div className="text-center mt-20 opacity-50 font-medium text-lg">No tasks for today.<br/>You're all clear! ✨</div>
+              {tasks.filter(tsk => !tsk.is_completed).length === 0 ? (
+                <div className="text-center mt-20 opacity-50 font-medium text-lg" dangerouslySetInnerHTML={{__html: t.no_tasks}} />
               ) : (
-                tasks.filter(t => !t.is_completed).map(task => (
+                tasks.filter(tsk => !tsk.is_completed).map(task => (
                   <div key={task.id} className={`${cardStyle} rounded-[24px] p-5 flex items-start space-x-4 transition-all`}>
                     <button onClick={() => toggleTask(task.id)} className="mt-0.5 flex-shrink-0 active:scale-90 transition-transform">
                       <Circle className="w-6 h-6 opacity-40 hover:opacity-100 transition-opacity" />
@@ -168,8 +220,8 @@ export default function App() {
               <button onClick={() => setView('list')} className="active:scale-90 transition-transform opacity-80 flex items-center">
                 <ArrowLeft className="w-7 h-7" />
               </button>
-              <button onClick={handleCreate} className="font-semibold text-lg opacity-90 active:scale-95 transition-transform">
-                Done
+              <button onClick={handleCreate} className={`font-semibold text-lg ${title.trim() ? 'opacity-100' : 'opacity-40'} active:scale-95 transition-transform`}>
+                {t.done}
               </button>
             </div>
 
@@ -177,7 +229,7 @@ export default function App() {
               <div className={`${cardStyle} rounded-[28px] p-6 space-y-5`}>
                 <input
                   type="text"
-                  placeholder="What needs to be done?"
+                  placeholder={t.what_needs_done}
                   value={title}
                   onChange={e => setTitle(e.target.value)}
                   className={`w-full bg-transparent border-none outline-none text-2xl font-semibold placeholder:opacity-40`}
@@ -185,51 +237,49 @@ export default function App() {
                 />
                 <div className="h-[1px] w-full bg-gray-500/20" />
                 <textarea
-                  placeholder="Details (optional)"
+                  placeholder={t.details}
                   value={desc}
                   onChange={e => setDesc(e.target.value)}
                   className={`w-full bg-transparent border-none outline-none resize-none h-20 text-[17px] placeholder:opacity-40`}
                 />
               </div>
 
-              {/* Minimalist Reminder UI */}
               <div className="space-y-3">
-                <h3 className="ml-2 text-[13px] font-semibold uppercase tracking-wider opacity-60">Remind me</h3>
+                <h3 className="ml-2 text-[13px] font-semibold uppercase tracking-wider opacity-60">{t.remind_me}</h3>
                 <div className="grid grid-cols-2 gap-3">
                   <button 
                     onClick={() => { setRemindDate(addMinutes(new Date(), 15)); setShowCustomTime(false); }}
                     className={`${cardStyle} ${remindDate && Math.abs(remindDate.getTime() - addMinutes(new Date(), 15).getTime()) < 60000 ? 'ring-2 ring-white/50' : ''} rounded-2xl p-4 flex flex-col items-center justify-center space-y-1 active:scale-95 transition-all`}
                   >
                     <Zap className="w-6 h-6 opacity-70" />
-                    <span className="text-[14px] font-medium">In 15 mins</span>
+                    <span className="text-[14px] font-medium">{t.in_15_m}</span>
                   </button>
                   <button 
                     onClick={() => { setRemindDate(addHours(new Date(), 1)); setShowCustomTime(false); }}
                     className={`${cardStyle} rounded-2xl p-4 flex flex-col items-center justify-center space-y-1 active:scale-95 transition-all`}
                   >
                     <Clock className="w-6 h-6 opacity-70" />
-                    <span className="text-[14px] font-medium">In 1 hour</span>
+                    <span className="text-[14px] font-medium">{t.in_1_h}</span>
                   </button>
                   <button 
                     onClick={() => { setRemindDate(setHours(startOfDay(addDays(new Date(), 1)), 9)); setShowCustomTime(false); }}
                     className={`${cardStyle} rounded-2xl p-4 flex flex-col items-center justify-center space-y-1 active:scale-95 transition-all`}
                   >
                     <Calendar className="w-6 h-6 opacity-70" />
-                    <span className="text-[14px] font-medium">Tomorrow 9 AM</span>
+                    <span className="text-[14px] font-medium">{t.tmrw_9am}</span>
                   </button>
                   <button 
                     onClick={() => { setShowCustomTime(true); setRemindDate(new Date()); }}
                     className={`${cardStyle} rounded-2xl p-4 flex flex-col items-center justify-center space-y-1 active:scale-95 transition-all`}
                   >
                     <Settings2 className="w-6 h-6 opacity-70" />
-                    <span className="text-[14px] font-medium">Custom</span>
+                    <span className="text-[14px] font-medium">{t.custom}</span>
                   </button>
                 </div>
                 
-                {/* Custom Time Selector */}
                 {showCustomTime && (
                   <div className={`mt-4 ${cardStyle} rounded-2xl p-5 flex items-center justify-between animate-in fade-in slide-in-from-top-2`}>
-                    <span className="font-medium opacity-80">Select time</span>
+                    <span className="font-medium opacity-80">{t.select_time}</span>
                     <input 
                       type="time" 
                       value={customTimeStr}
@@ -249,25 +299,35 @@ export default function App() {
               <button onClick={() => setView('list')} className="active:scale-90 transition-transform opacity-80 flex items-center">
                 <ArrowLeft className="w-7 h-7" />
               </button>
-              <h1 className="text-2xl font-semibold ml-auto mr-auto pr-7">Settings</h1>
+              <h1 className="text-2xl font-semibold ml-auto mr-auto pr-7">{t.settings}</h1>
             </div>
 
             <div className="space-y-8">
+              {/* Language */}
               <div>
-                <h3 className="ml-2 text-[13px] font-semibold uppercase tracking-wider opacity-60 mb-3">Theme</h3>
+                <h3 className="ml-2 text-[13px] font-semibold uppercase tracking-wider opacity-60 mb-3 flex items-center gap-1.5"><Globe className="w-4 h-4"/> {t.lang}</h3>
+                <div className={`${cardStyle} rounded-[24px] overflow-hidden flex`}>
+                  <button onClick={() => saveSetting('lang', 'ru')} className={`flex-1 p-4 font-medium transition-colors ${lang === 'ru' ? 'bg-black/10 dark:bg-white/10' : ''}`}>{t.russian}</button>
+                  <div className="w-[1px] bg-gray-500/20" />
+                  <button onClick={() => saveSetting('lang', 'en')} className={`flex-1 p-4 font-medium transition-colors ${lang === 'en' ? 'bg-black/10 dark:bg-white/10' : ''}`}>{t.english}</button>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="ml-2 text-[13px] font-semibold uppercase tracking-wider opacity-60 mb-3">{t.theme}</h3>
                 <div className={`${cardStyle} rounded-[24px] overflow-hidden`}>
                   {[
-                    { id: 'liquid-glass', name: 'Liquid Glass (Default)' },
-                    { id: 'dark', name: 'Solid Dark' },
-                    { id: 'light', name: 'Solid Light' }
-                  ].map((t, idx, arr) => (
-                    <div key={t.id} className="relative">
+                    { id: 'liquid-glass', name: t.liquid_glass },
+                    { id: 'dark', name: t.solid_dark },
+                    { id: 'light', name: t.solid_light }
+                  ].map((thm, idx, arr) => (
+                    <div key={thm.id} className="relative">
                       <button
-                        onClick={() => saveSetting('theme', t.id)}
+                        onClick={() => saveSetting('theme', thm.id)}
                         className={`w-full flex items-center justify-between p-4 px-5 active:bg-black/5 dark:active:bg-white/5 transition-colors`}
                       >
-                        <span className="font-medium text-[16px]">{t.name}</span>
-                        {theme === t.id && <CheckCircle2 className="w-5 h-5 opacity-80" />}
+                        <span className="font-medium text-[16px]">{thm.name}</span>
+                        {theme === thm.id && <CheckCircle2 className="w-5 h-5 opacity-80" />}
                       </button>
                       {idx !== arr.length - 1 && <div className="h-[1px] ml-5 bg-gray-500/20" />}
                     </div>
@@ -276,7 +336,7 @@ export default function App() {
               </div>
 
               <div>
-                <h3 className="ml-2 text-[13px] font-semibold uppercase tracking-wider opacity-60 mb-3">Accent Button Style</h3>
+                <h3 className="ml-2 text-[13px] font-semibold uppercase tracking-wider opacity-60 mb-3">{t.accent_style}</h3>
                 <div className={`${cardStyle} rounded-[24px] p-5 flex justify-around`}>
                   {['bg-white/20', 'bg-blue-500', 'bg-purple-500', 'bg-pink-500', 'bg-black'].map(color => (
                     <button

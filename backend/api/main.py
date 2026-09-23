@@ -42,7 +42,13 @@ async def get_tasks(user_id: int, db: AsyncSession = Depends(get_db)):
 
 @app.post("/tasks", response_model=TaskResponse)
 async def create_task(task: TaskCreate, db: AsyncSession = Depends(get_db)):
-    new_task = Task(**task.model_dump())
+    task_data = task.model_dump()
+    if task_data.get('remind_at') and task_data['remind_at'].tzinfo:
+        # Convert to naive UTC time to match PostgreSQL timestamp without timezone
+        import datetime
+        task_data['remind_at'] = task_data['remind_at'].astimezone(datetime.timezone.utc).replace(tzinfo=None)
+        
+    new_task = Task(**task_data)
     db.add(new_task)
     await db.commit()
     await db.refresh(new_task)

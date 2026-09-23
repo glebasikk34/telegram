@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import { useState, useEffect } from 'react';
 import WebApp from '@twa-dev/sdk';
 import { CheckCircle2, Circle, Settings2, Plus, ArrowLeft, Clock, Calendar, Zap } from 'lucide-react';
@@ -105,10 +106,6 @@ export default function App() {
   const cardStyle = isGlass ? 'bg-white/10 backdrop-blur-2xl border border-white/20 shadow-[0_8px_32px_0_rgba(31,38,135,0.15)]' 
                   : theme === 'dark' ? 'bg-[#1c1c1e]' 
                   : 'bg-white shadow-sm';
-
-  const inputStyle = isGlass ? 'bg-white/5 placeholder-white/50 text-white border-white/10'
-                   : theme === 'dark' ? 'bg-[#2c2c2e] placeholder-gray-500 text-white'
-                   : 'bg-gray-100 placeholder-gray-400 text-black';
 
   return (
     <div className={`min-h-screen relative overflow-hidden font-sans transition-colors duration-500 ${bgMain}`}>

@@ -4,7 +4,7 @@ import { CheckCircle2, Circle, Settings2, Plus, ArrowLeft, Clock, Calendar, Zap 
 import axios from 'axios';
 import { format, addMinutes, addHours, addDays, startOfDay, setHours, setMinutes } from 'date-fns';
 
-const API_URL = import.meta.env.DEV ? 'http://localhost:8000' : 'ВАШ_URL_ОТ_RENDER_ЗДЕСЬ';
+const API_URL = import.meta.env.DEV ? 'http://localhost:8000' : 'https://telegram-z0dj.onrender.com';
 
 interface Task {
   id: number;

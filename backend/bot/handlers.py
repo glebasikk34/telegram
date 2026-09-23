@@ -19,6 +19,16 @@ async def cmd_start(message: types.Message):
             await session.commit()
 
     markup = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Open Tasks", web_app=WebAppInfo(url=settings.WEBAPP_URL))]
+        [InlineKeyboardButton(text="✨ Открыть приложение", web_app=WebAppInfo(url=settings.WEBAPP_URL))]
     ])
-    await message.answer("Welcome to your Task Manager! 📝\nClick below to open the Mini App.", reply_markup=markup)
+    
+    text = (
+        "👋 <b>Добро пожаловать!</b>\n\n"
+        "Я — ваш личный минималистичный планировщик задач.\n\n"
+        "✨ <b>Что я умею:</b>\n"
+        "• Хранить ваши дела в эстетичном интерфейсе\n"
+        "• Отправлять точные пуш-напоминания прямо сюда\n"
+        "• Фокусировать вас на главном, без лишнего шума\n\n"
+        "👇 Нажмите кнопку ниже, чтобы создать первую задачу!"
+    )
+    await message.answer(text, reply_markup=markup, parse_mode="HTML")

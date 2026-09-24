@@ -9,10 +9,14 @@ from services.scheduler import start_scheduler
 from api.main import app
 
 async def start_bot():
-    if settings.BOT_TOKEN == "YOUR_BOT_TOKEN_HERE":
+    if settings.BOT_TOKEN == "YOUR_BOT_TOKEN_HERE" or not settings.BOT_TOKEN:
         print("Warning: BOT_TOKEN is not set. Bot will not start.")
         return
-    bot = Bot(token=settings.BOT_TOKEN)
+    
+    token = settings.BOT_TOKEN.strip().strip('"').strip("'")
+    print(f"Starting bot with token: {token[:5]}...{token[-5:]} (Length: {len(token)})")
+    
+    bot = Bot(token=token)
     dp = Dispatcher()
     dp.include_router(router)
     await bot.delete_webhook(drop_pending_updates=True)

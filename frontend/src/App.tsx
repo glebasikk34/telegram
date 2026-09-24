@@ -8,6 +8,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 const API_URL = import.meta.env.DEV ? 'http://localhost:8000' : 'https://telegram-z0dj.onrender.com';
 
+const api = axios.create({
+  baseURL: API_URL,
+  headers: {
+    'X-Telegram-Init-Data': WebApp.initData || ''
+  }
+});
+
 interface Task {
   id: number;
   title: string;
@@ -32,13 +39,15 @@ const translations = {
     theme: "Theme",
     dark_mode: "Dark Mode",
     light_mode: "Light Mode",
-    no_tasks: "No tasks for today.<br/>You're all clear! ✨",
+    no_tasks_line1: "No tasks for today.",
+    no_tasks_line2: "You're all clear! ✨",
     lang: "Language",
     english: "English",
     russian: "Russian",
     search: "Search notes...",
     active: "Active",
-    completed: "Completed"
+    completed: "Completed",
+    task_created: "Created successfully!"
   },
   ru: {
     tasks: "Задачи",
@@ -55,13 +64,15 @@ const translations = {
     theme: "Тема оформления",
     dark_mode: "Темная",
     light_mode: "Светлая",
-    no_tasks: "На сегодня задач нет.<br/>Вы свободны! ✨",
+    no_tasks_line1: "На сегодня задач нет.",
+    no_tasks_line2: "Вы свободны! ✨",
     lang: "Язык",
     english: "Английский",
     russian: "Русский",
     search: "Поиск заметок...",
     active: "Активные",
-    completed: "Завершенные"
+    completed: "Завершенные",
+    task_created: "Успешно создана!"
   }
 };
 
@@ -82,7 +93,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'active' | 'completed'>('active');
 
-  const userId = WebApp.initDataUnsafe.user?.id || 1080737807;
+  const userId = WebApp.initDataUnsafe.user?.id ?? 0;
   const t = translations[lang];
 
   useEffect(() => {
@@ -93,9 +104,17 @@ export default function App() {
     fetchTasks();
   }, []);
 
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [theme]);
+
   const fetchTasks = async () => {
     try {
-      const res = await axios.get(`${API_URL}/tasks/${userId}`);
+      const res = await api.get(`/tasks/${userId}`);
       setTasks(res.data);
     } catch (e) {
       console.error("Failed to fetch tasks", e);
@@ -117,8 +136,7 @@ export default function App() {
         }
       }
 
-      const res = await axios.post(`${API_URL}/tasks`, {
-        user_id: userId,
+      const res = await api.post(`/tasks`, {
         title,
         description: desc,
         remind_at: finalDate ? finalDate.toISOString() : null
@@ -143,7 +161,7 @@ export default function App() {
 
   const toggleTask = async (id: number) => {
     try {
-      await axios.put(`${API_URL}/tasks/${id}/complete`);
+      await api.put(`/tasks/${id}/complete`);
       setTasks(tasks.map(tsk => tsk.id === id ? { ...tsk, is_completed: true } : tsk));
       if (WebApp.HapticFeedback) WebApp.HapticFeedback.impactOccurred('medium');
     } catch (e) {
@@ -225,13 +243,10 @@ export default function App() {
               <div className="space-y-3 flex-1 overflow-y-auto pb-24 hide-scrollbar pt-2">
                 <AnimatePresence>
                   {filteredTasks.length === 0 ? (
-                    <motion.div 
-                      initial={{ opacity: 0 }} 
-                      animate={{ opacity: 1 }} 
-                      exit={{ opacity: 0 }}
-                      className="text-center mt-20 opacity-50 font-medium text-[15px]" 
-                      dangerouslySetInnerHTML={{__html: t.no_tasks}} 
-                    />
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center mt-20 opacity-50 font-medium text-[15px]">
+                      <p>{t.no_tasks_line1}</p>
+                      <p>{t.no_tasks_line2}</p>
+                    </motion.div>
                   ) : (
                     filteredTasks.map(task => (
                       <motion.div 
@@ -461,7 +476,7 @@ export default function App() {
             </motion.div>
             <div className="text-center">
               <h3 className="font-medium text-lg leading-tight">{flyingTask.title}</h3>
-              <p className="text-[14px] mt-1 text-[#1967d2] dark:text-[#8ab4f8] font-medium">Успешно создана!</p>
+              <p className="text-[14px] mt-1 text-[#1967d2] dark:text-[#8ab4f8] font-medium">{t.task_created}</p>
             </div>
           </motion.div>
         )}

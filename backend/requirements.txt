@@ -8,3 +8,5 @@ pydantic-settings==2.2.1
 greenlet==3.0.3
 python-dotenv==1.0.1
 dateparser==1.2.0
+aiohttp
+beautifulsoup4

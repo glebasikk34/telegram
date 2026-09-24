@@ -1,9 +1,9 @@
 /// <reference types="vite/client" />
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import WebApp from '@twa-dev/sdk';
-import { CheckCircle2, Circle, Settings2, Plus, ArrowLeft, Clock, Calendar, Zap, Globe, Search, Sparkles, Pin } from 'lucide-react';
+import { CheckCircle2, Circle, Settings2, Plus, ArrowLeft, Clock, Calendar as CalendarIcon, Zap, Globe, Search, Sparkles, Pin, LayoutGrid, ListTodo, Tag } from 'lucide-react';
 import axios from 'axios';
-import { format, addMinutes, addHours, addDays, startOfDay, setHours, setMinutes } from 'date-fns';
+import { format, addMinutes, addHours, addDays, startOfDay, setHours, setMinutes, isSameDay, parseISO } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const API_URL = import.meta.env.DEV ? 'http://localhost:8000' : 'https://telegram-z0dj.onrender.com';
@@ -28,6 +28,7 @@ interface Task {
 const translations = {
   en: {
     tasks: "Tasks",
+    notes: "Notes",
     settings: "Settings",
     done: "Done",
     what_needs_done: "What needs to be done?",
@@ -41,18 +42,22 @@ const translations = {
     theme: "Theme",
     dark_mode: "Dark Mode",
     light_mode: "Light Mode",
-    no_tasks_line1: "No tasks for today.",
-    no_tasks_line2: "You're all clear! ✨",
+    no_tasks: "No tasks for today. ✨",
+    no_notes: "No notes yet.",
     lang: "Language",
     english: "English",
     russian: "Russian",
-    search: "Search notes...",
+    search: "Search...",
     active: "Active",
-    completed: "Completed",
-    task_created: "Created successfully!"
+    archive: "Archive",
+    task_created: "Created successfully!",
+    all_tags: "All",
+    today: "Today",
+    upcoming: "Upcoming"
   },
   ru: {
     tasks: "Задачи",
+    notes: "Заметки",
     settings: "Настройки",
     done: "Готово",
     what_needs_done: "Что нужно сделать?",
@@ -66,21 +71,28 @@ const translations = {
     theme: "Тема оформления",
     dark_mode: "Темная",
     light_mode: "Светлая",
-    no_tasks_line1: "На сегодня задач нет.",
-    no_tasks_line2: "Вы свободны! ✨",
+    no_tasks: "Вы свободны! ✨",
+    no_notes: "Здесь пока пусто.",
     lang: "Язык",
     english: "Английский",
     russian: "Русский",
-    search: "Поиск заметок...",
+    search: "Поиск...",
     active: "Активные",
-    completed: "Завершенные",
-    task_created: "Успешно создана!"
+    archive: "Архив",
+    task_created: "Успешно сохранено!",
+    all_tags: "Все",
+    today: "Сегодня",
+    upcoming: "Предстоящие"
   }
 };
 
 export default function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [view, setView] = useState<'list' | 'create' | 'settings'>('list');
+  const [view, setView] = useState<'main' | 'create' | 'settings'>('main');
+  const [mainTab, setMainTab] = useState<'notes' | 'tasks'>('notes');
+  const [taskTab, setTaskTab] = useState<'active' | 'archive'>('active');
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
+
   const [title, setTitle] = useState('');
   const [desc, setDesc] = useState('');
   
@@ -93,7 +105,6 @@ export default function App() {
   
   const [flyingTask, setFlyingTask] = useState<{title: string, desc: string, id: number} | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'active' | 'completed'>('active');
 
   const userId = WebApp.initDataUnsafe.user?.id ?? 0;
   const t = translations[lang];
@@ -151,7 +162,7 @@ export default function App() {
       setDesc('');
       setRemindDate(null);
       setShowCustomTime(false);
-      setView('list');
+      setView('main');
       fetchTasks();
       if (WebApp.HapticFeedback) WebApp.HapticFeedback.notificationOccurred('success');
     } catch (e: any) {
@@ -189,136 +200,202 @@ export default function App() {
   };
 
   const isDark = theme === 'dark';
-  
-  // Gemini-like styling
   const bgMain = isDark ? 'bg-[#131314] text-[#e3e3e3]' : 'bg-[#ffffff] text-[#1f1f1f]';
   const cardStyle = isDark ? 'bg-[#1e1f20]' : 'bg-[#f0f4f9]';
   const accentGradient = 'bg-gradient-to-r from-[#4285f4] via-[#9b72cb] to-[#d96570] text-transparent bg-clip-text';
   const btnGradient = 'bg-gradient-to-r from-[#4285f4] via-[#9b72cb] to-[#d96570] text-white';
 
-  const filteredTasks = tasks.filter(tsk => {
+  const notes = useMemo(() => tasks.filter(t => !t.remind_at), [tasks]);
+  const allTasks = useMemo(() => tasks.filter(t => t.remind_at), [tasks]);
+
+  const allTags = useMemo(() => {
+    const tags = new Set<string>();
+    notes.forEach(n => {
+      if (n.tags) n.tags.split(',').forEach(tag => tags.add(tag.trim()));
+    });
+    return Array.from(tags).sort();
+  }, [notes]);
+
+  const filteredNotes = notes.filter(tsk => {
     const matchesSearch = tsk.title.toLowerCase().includes(searchQuery.toLowerCase()) || (tsk.description && tsk.description.toLowerCase().includes(searchQuery.toLowerCase()));
-    const matchesTab = activeTab === 'active' ? !tsk.is_completed : tsk.is_completed;
-    return matchesSearch && matchesTab;
+    const matchesTag = selectedTag ? tsk.tags?.includes(selectedTag) : true;
+    return matchesSearch && matchesTag;
   }).sort((a, b) => {
     if (a.is_pinned && !b.is_pinned) return -1;
     if (!a.is_pinned && b.is_pinned) return 1;
-    return 0;
+    return b.id - a.id;
   });
+
+  const filteredActiveTasks = allTasks.filter(tsk => !tsk.is_completed).sort((a, b) => new Date(a.remind_at!).getTime() - new Date(b.remind_at!).getTime());
+  const filteredArchiveTasks = allTasks.filter(tsk => tsk.is_completed).sort((a, b) => b.id - a.id);
+
+  const renderNoteCard = (task: Task) => (
+    <motion.div 
+      key={task.id}
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.9 }}
+      transition={{ duration: 0.2 }}
+      className={`${cardStyle} rounded-[20px] p-4 flex flex-col relative h-max`}
+    >
+      <button onClick={(e) => togglePin(task.id, e)} className="absolute top-3 right-3 opacity-30 hover:opacity-100 transition-opacity">
+        <Pin className={`w-4 h-4 ${task.is_pinned ? 'fill-current opacity-100 text-[#9b72cb]' : ''}`} />
+      </button>
+      <h3 className="font-medium text-[15px] leading-tight pr-6 break-words">{task.title}</h3>
+      {task.description && task.description !== task.title && (
+        <p className="mt-2 text-[13px] opacity-70 leading-snug break-words line-clamp-5">{task.description}</p>
+      )}
+      {task.tags && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {task.tags.split(',').map(tag => (
+            <span key={tag} className="text-[10px] px-2 py-0.5 rounded-full bg-black/5 dark:bg-white/10 opacity-70">
+              #{tag.trim()}
+            </span>
+          ))}
+        </div>
+      )}
+    </motion.div>
+  );
 
   return (
     <div className={`min-h-screen relative overflow-hidden font-sans transition-colors duration-500 ${bgMain}`}>
-      <div className="relative z-10 p-5 h-full max-w-md mx-auto flex flex-col">
+      <div className="relative z-10 p-5 pb-24 h-full max-w-md mx-auto flex flex-col">
         
         <AnimatePresence mode="wait">
-          {view === 'list' && (
+          {view === 'main' && (
             <motion.div 
-              key="list"
+              key="main"
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.3 }}
               className="flex flex-col h-full"
             >
-              <div className="flex justify-between items-center mb-6 pt-2">
-                <h1 className={`text-4xl font-medium tracking-tight flex items-center gap-2`}>
-                  <Sparkles className="w-8 h-8 text-[#9b72cb]" />
-                  <span className={accentGradient}>{t.tasks}</span>
+              <div className="flex justify-between items-center mb-5 pt-2">
+                <h1 className={`text-3xl font-medium tracking-tight flex items-center gap-2`}>
+                  <Sparkles className="w-7 h-7 text-[#9b72cb]" />
+                  <span className={accentGradient}>{mainTab === 'notes' ? t.notes : t.tasks}</span>
                 </h1>
                 <button onClick={() => setView('settings')} className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                   <Settings2 className="w-6 h-6 opacity-70" />
                 </button>
               </div>
 
-              <div className="mb-4 space-y-3">
-                <div className={`flex items-center px-4 py-3 rounded-full ${cardStyle}`}>
-                  <Search className="w-5 h-5 opacity-40 mr-3" />
-                  <input
-                    type="text"
-                    placeholder={t.search}
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    className="bg-transparent border-none outline-none w-full placeholder:opacity-40 text-[15px]"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setActiveTab('active')}
-                    className={`px-5 py-2 rounded-full text-sm font-medium transition-all duration-300 ${activeTab === 'active' ? 'bg-[#e8f0fe] text-[#1967d2] dark:bg-[#3f4a5c] dark:text-[#8ab4f8]' : 'hover:bg-black/5 dark:hover:bg-white/5 opacity-70'}`}
-                  >
-                    {t.active}
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('completed')}
-                    className={`px-5 py-2 rounded-full text-sm font-medium transition-all duration-300 ${activeTab === 'completed' ? 'bg-[#e8f0fe] text-[#1967d2] dark:bg-[#3f4a5c] dark:text-[#8ab4f8]' : 'hover:bg-black/5 dark:hover:bg-white/5 opacity-70'}`}
-                  >
-                    {t.completed}
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-3 flex-1 overflow-y-auto pb-24 hide-scrollbar pt-2">
-                <AnimatePresence>
-                  {filteredTasks.length === 0 ? (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center mt-20 opacity-50 font-medium text-[15px]">
-                      <p>{t.no_tasks_line1}</p>
-                      <p>{t.no_tasks_line2}</p>
-                    </motion.div>
-                  ) : (
-                    filteredTasks.map(task => (
-                      <motion.div 
-                        key={task.id}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.95 }}
-                        transition={{ duration: 0.2 }}
-                        className={`${cardStyle} rounded-[20px] p-5 flex items-start space-x-4 relative`}
+              {mainTab === 'notes' ? (
+                <>
+                  <div className={`flex items-center px-4 py-3 mb-4 rounded-full ${cardStyle}`}>
+                    <Search className="w-5 h-5 opacity-40 mr-3" />
+                    <input
+                      type="text"
+                      placeholder={t.search}
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      className="bg-transparent border-none outline-none w-full placeholder:opacity-40 text-[15px]"
+                    />
+                  </div>
+                  
+                  {allTags.length > 0 && (
+                    <div className="flex overflow-x-auto hide-scrollbar gap-2 mb-4 pb-1">
+                      <button
+                        onClick={() => setSelectedTag(null)}
+                        className={`whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-medium transition-all ${!selectedTag ? 'bg-[#e8f0fe] text-[#1967d2] dark:bg-[#3f4a5c] dark:text-[#8ab4f8]' : 'bg-black/5 dark:bg-white/5 opacity-70'}`}
                       >
-                        <button onClick={(e) => togglePin(task.id, e)} className="absolute top-4 right-4 opacity-30 hover:opacity-100 transition-opacity">
-                          <Pin className={`w-5 h-5 ${task.is_pinned ? 'fill-current opacity-100 text-[#9b72cb]' : ''}`} />
+                        {t.all_tags}
+                      </button>
+                      {allTags.map(tag => (
+                        <button
+                          key={tag}
+                          onClick={() => setSelectedTag(tag)}
+                          className={`whitespace-nowrap flex items-center gap-1 px-4 py-1.5 rounded-full text-xs font-medium transition-all ${selectedTag === tag ? 'bg-[#e8f0fe] text-[#1967d2] dark:bg-[#3f4a5c] dark:text-[#8ab4f8]' : 'bg-black/5 dark:bg-white/5 opacity-70'}`}
+                        >
+                          <Tag className="w-3 h-3" />
+                          {tag}
                         </button>
-                        <button onClick={() => toggleTask(task.id)} className="mt-0.5 flex-shrink-0 transition-transform">
-                          {task.is_completed ? (
-                            <CheckCircle2 className="w-6 h-6 text-[#1967d2] dark:text-[#8ab4f8]" />
-                          ) : (
-                            <Circle className="w-6 h-6 opacity-30 hover:opacity-100 transition-opacity" />
-                          )}
-                        </button>
-                        <div className={`flex-1 ${task.is_completed ? 'opacity-50 line-through' : ''} pr-6`}>
-                          <h3 className="font-medium text-[16px] leading-tight whitespace-pre-wrap">{task.title}</h3>
-                          {task.description && task.description !== task.title && <p className="mt-1 text-[14px] opacity-70 leading-snug whitespace-pre-wrap">{task.description}</p>}
-                          
-                          {task.tags && (
-                            <div className="mt-2 flex flex-wrap gap-1.5">
-                              {task.tags.split(',').map(tag => (
-                                <span key={tag} className="text-[11px] px-2 py-0.5 rounded bg-black/5 dark:bg-white/10 opacity-70">
-                                  #{tag}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-
-                          {task.remind_at && (
-                            <div className="mt-3 flex items-center space-x-1.5 text-[12px] font-medium text-[#1967d2] bg-[#e8f0fe] dark:text-[#8ab4f8] dark:bg-[#3f4a5c] w-max px-2.5 py-1 rounded-full">
-                              <Clock className="w-3.5 h-3.5" />
-                              <span>{format(new Date(task.remind_at), 'MMM d, HH:mm')}</span>
-                            </div>
-                          )}
-                        </div>
-                      </motion.div>
-                    ))
+                      ))}
+                    </div>
                   )}
-                </AnimatePresence>
-              </div>
 
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setView('create')}
-                className={`fixed bottom-8 right-8 w-14 h-14 ${btnGradient} rounded-[20px] flex items-center justify-center shadow-lg shadow-purple-500/20`}
-              >
-                <Plus className="w-7 h-7" />
-              </motion.button>
+                  <div className="flex-1 overflow-y-auto hide-scrollbar pt-1">
+                    {filteredNotes.length === 0 ? (
+                      <div className="text-center mt-20 opacity-50 font-medium text-[14px]">{t.no_notes}</div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-3 items-start">
+                        <div className="flex flex-col gap-3">
+                          {filteredNotes.filter((_, i) => i % 2 === 0).map(renderNoteCard)}
+                        </div>
+                        <div className="flex flex-col gap-3">
+                          {filteredNotes.filter((_, i) => i % 2 !== 0).map(renderNoteCard)}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex gap-2 mb-5">
+                    <button
+                      onClick={() => setTaskTab('active')}
+                      className={`px-5 py-2 rounded-full text-sm font-medium transition-all duration-300 ${taskTab === 'active' ? 'bg-[#e8f0fe] text-[#1967d2] dark:bg-[#3f4a5c] dark:text-[#8ab4f8]' : 'hover:bg-black/5 dark:hover:bg-white/5 opacity-70'}`}
+                    >
+                      {t.active}
+                    </button>
+                    <button
+                      onClick={() => setTaskTab('archive')}
+                      className={`px-5 py-2 rounded-full text-sm font-medium transition-all duration-300 ${taskTab === 'archive' ? 'bg-[#e8f0fe] text-[#1967d2] dark:bg-[#3f4a5c] dark:text-[#8ab4f8]' : 'hover:bg-black/5 dark:hover:bg-white/5 opacity-70'}`}
+                    >
+                      {t.archive}
+                    </button>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto hide-scrollbar">
+                    {taskTab === 'active' ? (
+                      filteredActiveTasks.length === 0 ? (
+                        <div className="text-center mt-20 opacity-50 font-medium text-[14px]">{t.no_tasks}</div>
+                      ) : (
+                        <div className="space-y-3">
+                          {filteredActiveTasks.map(task => (
+                            <motion.div 
+                              key={task.id}
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              className={`${cardStyle} rounded-[20px] p-5 flex items-start space-x-4`}
+                            >
+                              <button onClick={() => toggleTask(task.id)} className="mt-0.5 flex-shrink-0 transition-transform">
+                                <Circle className="w-6 h-6 opacity-30 hover:opacity-100 transition-opacity" />
+                              </button>
+                              <div className="flex-1 pr-2">
+                                <h3 className="font-medium text-[15px] leading-tight">{task.title}</h3>
+                                <div className="mt-2.5 flex items-center space-x-1.5 text-[12px] font-medium text-[#1967d2] bg-[#e8f0fe] dark:text-[#8ab4f8] dark:bg-[#3f4a5c] w-max px-2.5 py-1 rounded-full">
+                                  <Clock className="w-3.5 h-3.5" />
+                                  <span>
+                                    {isSameDay(parseISO(task.remind_at!), new Date()) 
+                                      ? `${t.today}, ${format(parseISO(task.remind_at!), 'HH:mm')}`
+                                      : format(parseISO(task.remind_at!), 'MMM d, HH:mm')}
+                                  </span>
+                                </div>
+                              </div>
+                            </motion.div>
+                          ))}
+                        </div>
+                      )
+                    ) : (
+                      <div className="space-y-3">
+                        {filteredArchiveTasks.map(task => (
+                          <div key={task.id} className={`${cardStyle} rounded-[20px] p-5 flex items-start space-x-4 opacity-60`}>
+                            <button onClick={() => toggleTask(task.id)} className="mt-0.5 flex-shrink-0">
+                              <CheckCircle2 className="w-6 h-6 text-[#1967d2] dark:text-[#8ab4f8]" />
+                            </button>
+                            <div className="flex-1 line-through">
+                              <h3 className="font-medium text-[15px] leading-tight">{task.title}</h3>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+              
             </motion.div>
           )}
 
@@ -332,7 +409,7 @@ export default function App() {
               className="flex flex-col h-full"
             >
               <div className="flex items-center justify-between mb-8 pt-2">
-                <button onClick={() => setView('list')} className="p-2 -ml-2 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+                <button onClick={() => setView('main')} className="p-2 -ml-2 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                   <ArrowLeft className="w-6 h-6 opacity-80" />
                 </button>
                 <button onClick={handleCreate} className={`font-medium text-[15px] px-5 py-2 rounded-full transition-all ${title.trim() ? btnGradient + ' shadow-md shadow-purple-500/20' : cardStyle + ' opacity-50'}`}>
@@ -380,7 +457,7 @@ export default function App() {
                       onClick={() => { setRemindDate(setHours(startOfDay(addDays(new Date(), 1)), 9)); setShowCustomTime(false); }}
                       className={`${cardStyle} rounded-[20px] p-4 flex flex-col items-center justify-center space-y-2 transition-all`}
                     >
-                      <Calendar className="w-5 h-5 opacity-70" />
+                      <CalendarIcon className="w-5 h-5 opacity-70" />
                       <span className="text-[13px] font-medium">{t.tmrw_9am}</span>
                     </button>
                     <button 
@@ -405,12 +482,12 @@ export default function App() {
                           <div className="flex gap-3">
                             <input 
                               type="date" 
-                              value={remindDate ? format(remindDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd')}
+                              value={remindDate && !isNaN(remindDate.getTime()) ? format(remindDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd')}
                               onChange={(e) => {
                                 const [y, m, d] = e.target.value.split('-');
                                 const newD = new Date(Number(y), Number(m)-1, Number(d));
-                                const currentH = remindDate ? remindDate.getHours() : 12;
-                                const currentM = remindDate ? remindDate.getMinutes() : 0;
+                                const currentH = remindDate && !isNaN(remindDate.getTime()) ? remindDate.getHours() : 12;
+                                const currentM = remindDate && !isNaN(remindDate.getTime()) ? remindDate.getMinutes() : 0;
                                 setRemindDate(setMinutes(setHours(newD, currentH), currentM));
                               }}
                               className={`flex-1 bg-transparent text-[15px] font-medium outline-none ${isDark ? '[color-scheme:dark]' : ''}`}
@@ -441,7 +518,7 @@ export default function App() {
               className="flex flex-col h-full"
             >
               <div className="flex items-center mb-8 pt-2">
-                <button onClick={() => setView('list')} className="p-2 -ml-2 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+                <button onClick={() => setView('main')} className="p-2 -ml-2 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                   <ArrowLeft className="w-6 h-6 opacity-80" />
                 </button>
                 <h1 className="text-xl font-medium ml-auto mr-auto pr-7">{t.settings}</h1>
@@ -483,6 +560,36 @@ export default function App() {
 
       </div>
       
+      {/* Bottom Navigation */}
+      {view === 'main' && (
+        <div className={`fixed bottom-0 left-0 right-0 z-40 px-6 py-4 flex justify-between items-center max-w-md mx-auto ${isDark ? 'bg-[#131314]/80' : 'bg-[#ffffff]/80'} backdrop-blur-xl border-t border-black/5 dark:border-white/5`}>
+          <button 
+            onClick={() => setMainTab('notes')}
+            className={`flex flex-col items-center gap-1 transition-colors ${mainTab === 'notes' ? 'text-[#1967d2] dark:text-[#8ab4f8]' : 'opacity-40 hover:opacity-100'}`}
+          >
+            <LayoutGrid className="w-6 h-6" />
+            <span className="text-[10px] font-medium">{t.notes}</span>
+          </button>
+          
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setView('create')}
+            className={`w-14 h-14 -mt-8 ${btnGradient} rounded-[20px] flex items-center justify-center shadow-lg shadow-purple-500/20`}
+          >
+            <Plus className="w-7 h-7" />
+          </motion.button>
+          
+          <button 
+            onClick={() => setMainTab('tasks')}
+            className={`flex flex-col items-center gap-1 transition-colors ${mainTab === 'tasks' ? 'text-[#1967d2] dark:text-[#8ab4f8]' : 'opacity-40 hover:opacity-100'}`}
+          >
+            <ListTodo className="w-6 h-6" />
+            <span className="text-[10px] font-medium">{t.tasks}</span>
+          </button>
+        </div>
+      )}
+
       {/* Super smooth flying animation via Framer Motion */}
       <AnimatePresence>
         {flyingTask && (

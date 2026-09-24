@@ -117,7 +117,7 @@ export default function App() {
   const fetchTasks = async () => {
     try {
       const res = await api.get(`/tasks/${userId}`);
-      setTasks(res.data);
+      setTasks(Array.isArray(res.data) ? res.data : []);
     } catch (e) {
       console.error("Failed to fetch tasks", e);
     }

@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import { useState, useEffect } from 'react';
 import WebApp from '@twa-dev/sdk';
-import { CheckCircle2, Circle, Settings2, Plus, ArrowLeft, Clock, Calendar, Zap, Globe, Search, Sparkles } from 'lucide-react';
+import { CheckCircle2, Circle, Settings2, Plus, ArrowLeft, Clock, Calendar, Zap, Globe, Search, Sparkles, Pin } from 'lucide-react';
 import axios from 'axios';
 import { format, addMinutes, addHours, addDays, startOfDay, setHours, setMinutes } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -21,6 +21,8 @@ interface Task {
   description: string | null;
   remind_at: string | null;
   is_completed: boolean;
+  is_pinned: boolean;
+  tags: string | null;
 }
 
 const translations = {
@@ -161,11 +163,22 @@ export default function App() {
 
   const toggleTask = async (id: number) => {
     try {
-      await api.put(`/tasks/${id}/complete`);
-      setTasks(tasks.map(tsk => tsk.id === id ? { ...tsk, is_completed: true } : tsk));
+      const res = await api.put(`/tasks/${id}/complete`);
+      setTasks(tasks.map(tsk => tsk.id === id ? { ...tsk, is_completed: res.data.is_completed } : tsk));
       if (WebApp.HapticFeedback) WebApp.HapticFeedback.impactOccurred('medium');
     } catch (e) {
       console.error("Error completing task", e);
+    }
+  };
+
+  const togglePin = async (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const res = await api.put(`/tasks/${id}/pin`);
+      setTasks(tasks.map(tsk => tsk.id === id ? { ...tsk, is_pinned: res.data.is_pinned } : tsk));
+      if (WebApp.HapticFeedback) WebApp.HapticFeedback.impactOccurred('light');
+    } catch (e) {
+      console.error("Error pinning task", e);
     }
   };
 
@@ -187,6 +200,10 @@ export default function App() {
     const matchesSearch = tsk.title.toLowerCase().includes(searchQuery.toLowerCase()) || (tsk.description && tsk.description.toLowerCase().includes(searchQuery.toLowerCase()));
     const matchesTab = activeTab === 'active' ? !tsk.is_completed : tsk.is_completed;
     return matchesSearch && matchesTab;
+  }).sort((a, b) => {
+    if (a.is_pinned && !b.is_pinned) return -1;
+    if (!a.is_pinned && b.is_pinned) return 1;
+    return 0;
   });
 
   return (
@@ -255,18 +272,32 @@ export default function App() {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95 }}
                         transition={{ duration: 0.2 }}
-                        className={`${cardStyle} rounded-[20px] p-5 flex items-start space-x-4`}
+                        className={`${cardStyle} rounded-[20px] p-5 flex items-start space-x-4 relative`}
                       >
-                        <button onClick={() => toggleTask(task.id)} className="mt-0.5 flex-shrink-0 transition-transform disabled:opacity-50" disabled={task.is_completed}>
+                        <button onClick={(e) => togglePin(task.id, e)} className="absolute top-4 right-4 opacity-30 hover:opacity-100 transition-opacity">
+                          <Pin className={`w-5 h-5 ${task.is_pinned ? 'fill-current opacity-100 text-[#9b72cb]' : ''}`} />
+                        </button>
+                        <button onClick={() => toggleTask(task.id)} className="mt-0.5 flex-shrink-0 transition-transform">
                           {task.is_completed ? (
                             <CheckCircle2 className="w-6 h-6 text-[#1967d2] dark:text-[#8ab4f8]" />
                           ) : (
                             <Circle className="w-6 h-6 opacity-30 hover:opacity-100 transition-opacity" />
                           )}
                         </button>
-                        <div className={`flex-1 ${task.is_completed ? 'opacity-50 line-through' : ''}`}>
-                          <h3 className="font-medium text-[16px] leading-tight">{task.title}</h3>
-                          {task.description && <p className="mt-1 text-[14px] opacity-70 leading-snug">{task.description}</p>}
+                        <div className={`flex-1 ${task.is_completed ? 'opacity-50 line-through' : ''} pr-6`}>
+                          <h3 className="font-medium text-[16px] leading-tight whitespace-pre-wrap">{task.title}</h3>
+                          {task.description && task.description !== task.title && <p className="mt-1 text-[14px] opacity-70 leading-snug whitespace-pre-wrap">{task.description}</p>}
+                          
+                          {task.tags && (
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              {task.tags.split(',').map(tag => (
+                                <span key={tag} className="text-[11px] px-2 py-0.5 rounded bg-black/5 dark:bg-white/10 opacity-70">
+                                  #{tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
                           {task.remind_at && (
                             <div className="mt-3 flex items-center space-x-1.5 text-[12px] font-medium text-[#1967d2] bg-[#e8f0fe] dark:text-[#8ab4f8] dark:bg-[#3f4a5c] w-max px-2.5 py-1 rounded-full">
                               <Clock className="w-3.5 h-3.5" />

@@ -19,3 +19,5 @@ class Task(Base):
     remind_at = Column(DateTime, nullable=True)
     is_completed = Column(Boolean, default=False)
     is_notified = Column(Boolean, default=False)
+    is_pinned = Column(Boolean, default=False)
+    tags = Column(String, nullable=True)

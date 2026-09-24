@@ -21,10 +21,22 @@ async def check_reminders():
 
         for task in tasks:
             try:
+                from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+                markup = InlineKeyboardMarkup(inline_keyboard=[
+                    [
+                        InlineKeyboardButton(text="✅ Сделано", callback_data=f"done_{task.id}"),
+                        InlineKeyboardButton(text="💤 +15 мин", callback_data=f"snooze_15_{task.id}")
+                    ],
+                    [
+                        InlineKeyboardButton(text="💤 +1 час", callback_data=f"snooze_60_{task.id}"),
+                        InlineKeyboardButton(text="📅 Завтра", callback_data=f"snooze_1440_{task.id}")
+                    ]
+                ])
                 await bot.send_message(
                     chat_id=task.user_id,
                     text=f"🔔 <b>Напоминание!</b>\n\n<b>{html.escape(task.title)}</b>\n{html.escape(task.description or '')}",
-                    parse_mode="HTML"
+                    parse_mode="HTML",
+                    reply_markup=markup
                 )
                 task.is_notified = True
                 session.add(task)

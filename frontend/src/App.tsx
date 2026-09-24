@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import { useState, useEffect } from 'react';
 import WebApp from '@twa-dev/sdk';
 import { CheckCircle2, Circle, Settings2, Plus, ArrowLeft, Clock, Calendar, Zap, Globe, Search, Sparkles } from 'lucide-react';

@@ -11,7 +11,7 @@ scheduler = AsyncIOScheduler()
 bot = Bot(token=settings.BOT_TOKEN)
 
 async def check_reminders():
-    now = datetime.utcnow()
+    now = datetime.now(datetime.timezone.utc).replace(tzinfo=None)
     async with AsyncSessionLocal() as session:
         result = await session.execute(
             select(Task).where(Task.remind_at <= now, Task.is_completed == False, Task.is_notified == False)
@@ -34,5 +34,5 @@ async def check_reminders():
             await session.commit()
 
 def start_scheduler():
-    scheduler.add_job(check_reminders, 'interval', seconds=60)
+    scheduler.add_job(check_reminders, 'interval', seconds=10)
     scheduler.start()

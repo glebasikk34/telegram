@@ -6,8 +6,7 @@ from config import settings
 engine = create_async_engine(
     settings.DATABASE_URL, 
     echo=False,
-    prepared_statement_cache_size=0,
-    connect_args={"statement_cache_size": 0}
+    connect_args={"statement_cache_size": 0, "prepared_statement_cache_size": 0}
 )
 AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
